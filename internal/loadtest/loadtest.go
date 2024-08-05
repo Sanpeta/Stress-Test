@@ -24,47 +24,44 @@ func StartLoadTest(url string, totalRequests, concurrency int) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	requestsPerWorker := totalRequests / concurrency
+	extraRequests := totalRequests % concurrency
+
 	for i := 0; i < concurrency; i++ {
 		wg.Add(1)
-		go worker(ctx, url, results, &wg)
+		go func(workerID int) {
+			defer wg.Done()
+			numRequests := requestsPerWorker
+			if workerID < extraRequests {
+				numRequests++
+			}
+			for j := 0; j < numRequests; j++ {
+				select {
+				case <-ctx.Done():
+					return
+				default:
+					start := time.Now()
+					resp, err := http.Get(url)
+					duration := time.Since(start)
+
+					if err != nil {
+						results <- ResultLoadTest{StatusCode: 0, Duration: duration}
+						continue
+					}
+
+					results <- ResultLoadTest{StatusCode: resp.StatusCode, Duration: duration}
+					resp.Body.Close()
+				}
+			}
+		}(i)
 	}
 
 	start := time.Now()
-	for i := 0; i < totalRequests; i++ {
-		select {
-		case <-ctx.Done():
-		default:
-			time.Sleep(10 * time.Millisecond)
-		}
-	}
-	cancel()
 	wg.Wait()
 	close(results)
 
 	duration := time.Since(start)
 	report(results, duration, totalRequests)
-}
-
-func worker(ctx context.Context, url string, results chan<- ResultLoadTest, wg *sync.WaitGroup) {
-	defer wg.Done()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		default:
-			start := time.Now()
-			resp, err := http.Get(url)
-			duration := time.Since(start)
-
-			if err != nil {
-				results <- ResultLoadTest{StatusCode: 0, Duration: duration}
-				continue
-			}
-
-			results <- ResultLoadTest{StatusCode: resp.StatusCode, Duration: duration}
-			resp.Body.Close()
-		}
-	}
 }
 
 func report(results <-chan ResultLoadTest, duration time.Duration, totalRequests int) {
