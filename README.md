@@ -1,4 +1,4 @@
-# Desafio-Tecnico-Stress-Test
+# Stress Test
 
 Este projeto fornece uma ferramenta de linha de comando (CLI) para realizar testes de carga e estresse em um serviço web. Utiliza Go e Cobra CLI para configurar e executar os testes, além de gerar relatórios com os resultados.
 
